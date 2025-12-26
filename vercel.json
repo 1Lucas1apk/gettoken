@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "regions": ["iad1"],
+  "redirects": [
+    {
+      "source": "/((?!pandora/gettoken).*)",
+      "destination": "https://1lucas1apk.fun",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    { "source": "/pandora/gettoken", "destination": "/api/gettoken.js" }
+  ]
+}
