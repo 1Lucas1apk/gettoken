@@ -9,6 +9,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/pandora/gettoken", "destination": "/api/gettoken.js" }
+    { "source": "/pandora/gettoken", "destination": "/api/gettoken.js" },
+    { "source": "/spotify/gettoken", "destination": "/api/spotify.js" }
   ]
 }

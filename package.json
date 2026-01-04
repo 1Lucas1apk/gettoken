@@ -4,6 +4,10 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "dependencies": {
+    "puppeteer-core": "^23.0.0",
+    "@sparticuz/chromium": "^127.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
