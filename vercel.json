@@ -3,7 +3,7 @@
   "regions": ["iad1"],
   "redirects": [
     {
-      "source": "/((?!pandora/gettoken).*)",
+      "source": "/((?!pandora/gettoken|spotify/gettoken).*)",
       "destination": "https://1lucas1apk.fun",
       "permanent": false
     }
