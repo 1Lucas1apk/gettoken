@@ -1,4 +1,4 @@
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 
 const cache = {
@@ -25,10 +25,13 @@ export default async function handler(req, res) {
 
   let browser = null;
   try {
+    // URL para o binário do Chromium (necessário para chromium-min)
+    const chromiumPackUrl = "https://github.com/sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
+
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath(chromiumPackUrl),
       headless: chromium.headless,
     });
 

@@ -5,11 +5,12 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-    "puppeteer-core": "21.6.0",
-    "@sparticuz/chromium": "119.0.2"
+    "@sparticuz/chromium": "131.0.1",
+    "@sparticuz/chromium-min": "^143.0.4",
+    "puppeteer-core": "^23.10.1"
   },
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,5 +18,4 @@
   "keywords": [],
   "author": "",
   "license": "ISC"
-
 }
