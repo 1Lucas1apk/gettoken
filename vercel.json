@@ -11,5 +11,11 @@
   "rewrites": [
     { "source": "/pandora/gettoken", "destination": "/api/gettoken.js" },
     { "source": "/spotify/gettoken", "destination": "/api/spotify.js" }
-  ]
+  ],
+  "functions": {
+    "api/spotify.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
 }
