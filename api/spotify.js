@@ -1,99 +1,52 @@
-import chromium from '@sparticuz/chromium-min';
-import puppeteer from 'puppeteer-core';
-
-const cache = {
-  data: null,
-  expiry: 0
-};
+// pages/api/token.js (Next.js API Route)
+// Proxy simples para: https://internal.1lucas1apk.fun/api/token
+// Sem cache, só repassa a resposta.
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "GET") {
+    return res.status(405).json({ success: false, error: "Method Not Allowed" });
   }
 
-  const now = Date.now();
-  if (cache.data && now < cache.expiry) {
-    return res.status(200).json({
-      ...cache.data,
-      source: 'cache'
-    });
-  }
-
-  let browser = null;
   try {
-    // URL para o binário do Chromium (necessário para chromium-min)
-    const chromiumPackUrl = "https://github.com/sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
-
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(chromiumPackUrl),
-      headless: chromium.headless,
-    });
-
-    const page = await browser.newPage();
-    let tokens = {};
-
-    page.on('response', async (response) => {
-      const url = response.url();
-      if (url.includes('/api/token')) {
-        try {
-          const json = await response.json();
-          if (json.accessToken) {
-            tokens.accessToken = json.accessToken;
-            tokens.clientId = json.clientId;
-            tokens.accessTokenExpirationTimestampMs = json.accessTokenExpirationTimestampMs;
-          }
-        } catch (e) {}
-      }
-      if (url.includes('clienttoken.spotify.com')) {
-        try {
-          const json = await response.json();
-          tokens.clientToken = json.granted_token?.token;
-        } catch (e) {}
-      }
-    });
-
-    await page.goto('https://open.spotify.com', {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
-
-    let attempts = 0;
-    while ((!tokens.accessToken || !tokens.clientToken) && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
+    const upstream = "https://internal.1lucas1apk.fun/api/token";
+    const url = new URL(upstream);
+    for (const [k, v] of Object.entries(req.query || {})) {
+      url.searchParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
     }
 
-    if (!tokens.accessToken) {
-      throw new Error('Falha ao obter tokens do Spotify');
+    const upstreamRes = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+        "Cache-Control": "no-store",
+        Pragma: "no-cache",
+      },
+    });
+
+    const contentType = upstreamRes.headers.get("content-type") || "";
+
+    res.status(upstreamRes.status);
+    res.setHeader("Content-Type", contentType.includes("application/json") ? "application/json" : "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+
+    if (contentType.includes("application/json")) {
+      const data = await upstreamRes.json();
+      return res.json(data);
     }
 
-    const result = {
-      clientId: tokens.clientId,
-      accessToken: tokens.accessToken,
-      accessTokenExpirationTimestampMs: tokens.accessTokenExpirationTimestampMs,
-      isAnonymous: true
-    };
-
-    cache.data = result;
-    cache.expiry = tokens.accessTokenExpirationTimestampMs - 60000; // Cache expires 1 minute before token
-
-    return res.status(200).json(result);
-
+    const text = await upstreamRes.text();
+    return res.send(text);
   } catch (error) {
-    console.error('Erro Spotify:', error.message);
-    return res.status(500).json({
+    console.error("Erro Proxy:", error?.message || error);
+    return res.status(502).json({
       success: false,
-      error: error.message
+      error: error?.message || "Bad Gateway",
     });
-  } finally {
-    if (browser !== null) {
-      await browser.close();
-    }
   }
 }
