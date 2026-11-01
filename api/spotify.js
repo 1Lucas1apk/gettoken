@@ -6,8 +6,40 @@ let currentTotpVersion = null;
 let lastSecretFetchTime = 0;
 const SECRET_FETCH_INTERVAL = 60 * 60 * 1000; // 1 hora
 
-const SECRETS_URL = "https://raw.githubusercontent.com/xyloflake/spot-secrets-go/refs/heads/main/secrets/secretDict.json";
+// Lista de URLs para o arquivo de segredos (adicione mais opções se necessário)
+const SECRETS_URLS = [
+  "https://raw.githubusercontent.com/xyloflake/spot-secrets-go/refs/heads/main/secrets/secretDict.json",
+  "https://raw.githubusercontent.com/Arthur-Archives/spot-secrets-go/refs/heads/main/secrets/secretDict.json"
+];
+
+// Lista de URLs Upstream para o proxy padrão (adicione alternativas em ordem de prioridade)
+const UPSTREAM_URLS = [
+  "https://internal.1lucas1apk.fun",
+  "https://api-gettoken-spotify-token.triniumhost.indevs.in"
+];
+
 const USER_AGENT_MOBILE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
+
+/**
+ * Tenta executar o fetch em uma lista de URLs sequencialmente até obter sucesso.
+ */
+async function fetchWithFallback(urls, options = {}, path = "") {
+  let lastError;
+  for (const baseUrl of urls) {
+    const fullUrl = baseUrl.replace(/\/$/, "") + path;
+    try {
+      const res = await fetch(fullUrl, options);
+      if (res.ok) {
+        return res;
+      }
+      lastError = new Error(`HTTP Error status: ${res.status} on ${fullUrl}`);
+    } catch (err) {
+      lastError = err;
+      console.warn(`Falha ao conectar em ${fullUrl}:`, err.message);
+    }
+  }
+  throw lastError || new Error("Todas as URLs de fallback falharam.");
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -70,23 +102,26 @@ export default async function handler(req, res) {
       }
   }
 
-  // --- Lógica Padrão (Proxy para internal.1lucas1apk.fun) ---
+  // --- Lógica Padrão (Proxy com Fallback para UPSTREAM_URLS) ---
   try {
-    const upstream = "https://internal.1lucas1apk.fun/api/token";
-    const url = new URL(upstream);
+    // Constrói a query string com os parâmetros recebidos
+    const queryParams = new URLSearchParams();
     for (const [k, v] of Object.entries(req.query || {})) {
-      // Repassa todos os params, exceto se quiséssemos filtrar algo
-      url.searchParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
+      queryParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
     }
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
-    const upstreamRes = await fetch(url.toString(), {
+    const fetchOptions = {
       method: "GET",
       headers: {
         ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
         "Cache-Control": "no-store",
         Pragma: "no-cache",
       },
-    });
+    };
+
+    // Executa a requisição com fallback entre as URLs de upstream
+    const upstreamRes = await fetchWithFallback(UPSTREAM_URLS, fetchOptions, `/api/token${queryString}`);
 
     const contentType = upstreamRes.headers.get("content-type") || "";
 
@@ -102,7 +137,7 @@ export default async function handler(req, res) {
     const text = await upstreamRes.text();
     return res.send(text);
   } catch (error) {
-    console.error("Erro Proxy:", error?.message || error);
+    console.error("Erro Proxy com Fallback:", error?.message || error);
     return res.status(502).json({
       success: false,
       error: error?.message || "Bad Gateway",
@@ -117,8 +152,8 @@ async function ensureTotpSecrets() {
     if (currentTotpSecret && (now - lastSecretFetchTime < SECRET_FETCH_INTERVAL)) return;
 
     try {
-        const res = await fetch(SECRETS_URL);
-        if (!res.ok) throw new Error("Failed to fetch secrets");
+        // Usa o mecanismo de fallback para buscar o JSON de segredos
+        const res = await fetchWithFallback(SECRETS_URLS);
         const secrets = await res.json();
         const versions = Object.keys(secrets).map(Number);
         const newestVersion = Math.max(...versions).toString();
@@ -129,7 +164,7 @@ async function ensureTotpSecrets() {
         currentTotpVersion = newestVersion;
         lastSecretFetchTime = now;
     } catch (e) {
-        console.error("Error fetching secrets, using fallback:", e);
+        console.error("Error fetching secrets from all URLs, using fallback:", e);
         if (!currentTotpSecret) {
              const fallbackData = [99, 111, 47, 88, 49, 56, 118, 65, 52, 67, 50, 104, 117, 101, 55, 94, 95, 75, 94, 49, 69, 36, 85, 64, 74, 60];
              const mapped = fallbackData.map((value, index) => value ^ ((index % 33) + 9));
